@@ -68,7 +68,7 @@ textarea{background:rgba(3,8,24,.7);border-radius:12px}.w{color:#ffd37a}.ok{colo
 <div class="row"><label>Style intensity <b id="vI">70</b>%</label><input id="inten" type="range" min="0" max="100" value="70" style="width:100%"></div>
 <div class="row"><label>Chromaticism <b id="vC">40</b>%</label><input id="chroma" type="range" min="0" max="100" value="40" style="width:100%"></div>
 <button class="pri" id="bGen" style="width:100%">Generate 3 phương án</button>
-<div class="desc">Chưa triển khai: giai điệu, âm vi cung, MIDI/PDF export, Lock Section. Các tham số không hiển thị ở đây chưa có logic nên đã được lược bỏ.</div></section>
+<div class="desc">Chưa triển khai: giai điệu, âm vi cung. Đã có: MIDI/PDF export (tab Export), Lock Section (nút 🔒 đầu mỗi dòng). Các tham số không hiển thị ở đây chưa có logic nên đã được lược bỏ.</div></section>
 <section class="scroll">
 <details id="dl"><summary>Lyrics &amp; chords (Original) – bấm để mở / sửa</summary><textarea id="src" rows="8" spellcheck="false"></textarea></details>
 <div class="tabs" id="tabs"></div>
@@ -82,7 +82,7 @@ textarea{background:rgba(3,8,24,.7);border-radius:12px}.w{color:#ffd37a}.ok{colo
 <div id="pg" class="pp" hidden><div class="desc">Bấm vào một hợp âm trong bài để xem thế bấm guitar và piano.</div></div>
 <div id="pt" class="pp" hidden><div style="overflow:auto"><table id="tbl"></table></div></div>
 <div id="pv" class="pp" hidden><div id="val"></div></div>
-<div id="pe" class="pp" hidden><div class="row"><select id="fmt"><option>TXT</option><option>ChordPro</option><option>JSON</option><option>HTML</option></select><button id="bCopy">Copy</button></div><textarea id="xout" rows="18" readonly></textarea></div></aside>
+<div id="pe" class="pp" hidden><div class="row"><select id="fmt"><option>TXT</option><option>ChordPro</option><option>JSON</option><option>HTML</option></select><button id="bCopy">Copy</button><button id="bMidi">Tải MIDI</button><button id="bPdf">In / PDF</button></div><textarea id="xout" rows="18" readonly></textarea></div></aside>
 <footer><button id="pA">▶ A (gốc)</button><button id="pB" class="on">▶ B (mới)</button><button id="bPause">❚❚ Pause</button><button id="bStop">■ Stop</button>
 <label><input type="checkbox" id="loop"> Loop</label><label><input type="checkbox" id="met"> Metronome</label>
 <label>BPM <input id="bpm" type="number" value="90" min="40" max="200" style="width:64px"></label>
@@ -238,4 +238,76 @@ $('#pg .row').insertAdjacentHTML('afterend',h)};
 $('#out').onclick=e=>{const el=e.target.closest('.ch');if(!el)return;const j=+el.dataset.i,bf=$('#cmp').checked&&S.act&&el.closest('#out>div')===$('#out').firstElementChild,chs=parse((bf?S.v[0]:S.v[S.act]).text),c=chs[j];if(!c)return;S.sel={j,c,chs};showV(c)};
 $('#pg').onclick=e=>{const b=e.target.closest('.pv');if(b){if(b.dataset.seq)audSeq(b.dataset.seq.split('|').map(x=>x.split(',').map(Number)),b.dataset.g=='1');else aud(b.dataset.m.split(',').map(Number),b.dataset.g=='1');return}const nv=e.target.closest('[data-nav]'),rw=e.target.closest('[data-j]');if((nv||rw)&&S.sel){const j=rw?+rw.dataset.j:S.sel.j+ +nv.dataset.nav;if(S.sel.chs[j]){S.sel.j=j;S.sel.c=S.sel.chs[j];showV(S.sel.c)}return}if(e.target.id=='lkb'&&S.sel){const j=S.sel.j;S.lock.has(j)?S.lock.delete(j):S.lock.add(j);draw();showV(S.sel.c)}};
 $('#src').value=DEMO;setT(DEMO,true);
+/* ===== Bổ sung: MIDI export, PDF export, Lock Section (không sửa logic cũ) ===== */
+(function(){
+const st=document.createElement('style');st.textContent='.lks{font:inherit;font-size:11px;padding:1px 7px;margin:0 8px 0 0;border-radius:999px;background:rgba(19,33,63,.08);color:#13213f;border:1px solid rgba(19,33,63,.25);cursor:pointer;vertical-align:middle;line-height:1.4}.lks:hover{background:#d4f6fc;border-color:#0b6b82}.lks.on{background:#0b6b82;color:#fff;border-color:#0b6b82}';document.head.appendChild(st);
+const vlq=n=>{const b=[n&127];while(n>>=7)b.unshift((n&127)|128);return b};
+function events(V,which){const chs=parse(V.text),bpc=+$('#bpc').value,ins=$('#inst').value;const sty=which=='A'?'orig':(STY[V.style]?STY[V.style][2]:'orig');const pat={jazz:'bossa',bossa:'bossa',rock:'rock',vn:'arp',mideast:'arp',pop:'arp',blues:'rock',soul:'arp',latin:'bossa',cine:'arp',orig:'block'}[sty]||'block';const ev=[];let prev=null;
+chs.forEach((c,i)=>{const s=i*bpc,vo=voice(c,prev),bs=36+(((c.b??c.r)%12)+12-36%12)%12;prev=vo;const add=(n,t,d,v)=>ev.push({n,t,d,v});
+add(bs,s,Math.min(2,bpc),88);
+if(pat=='block')vo.forEach(m=>add(m,s,bpc*.95,60));
+if(pat=='arp')for(let b=0;b<bpc*2;b++)add(vo[b%vo.length],s+b/2,1,70);
+if(pat=='bossa'){add(36+((c.r+7)%12),s+2,1,80);[0,1.5,2.5,3.5].filter(x=>x<bpc).forEach(x=>vo.forEach(m=>add(m,s+x,.7,55)))}
+if(pat=='rock')for(let b=0;b<bpc*2;b++){add(bs,s+b/2,.45,85);vo.slice(0,3).forEach(m=>add(m,s+b/2,.45,60))}});
+return{ev,len:chs.length*bpc}}
+function midi(V,which){const bpm=+$('#bpm').value||90,PPQ=480,{ev,len}=events(V,which);if(!ev.length)return null;
+const prog={piano:0,ep:4,organ:16,gtr:24,egtr:27,str:48}[$('#inst').value]||0;const L=[];
+ev.forEach(e=>{const on=Math.round(e.t*PPQ),off=Math.max(on+1,Math.round((e.t+e.d)*PPQ));const bass=e.n<48;L.push([on,1,e.n,e.v,bass]);L.push([off,0,e.n,0,bass])});
+L.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+const tr=[];const nm_=[...unescape(encodeURIComponent(V.name)||'Song')].map(c=>c.charCodeAt(0));
+tr.push(0,255,3,nm_.length,...nm_);const mpq=Math.round(60000000/bpm);tr.push(0,255,81,3,(mpq>>16)&255,(mpq>>8)&255,mpq&255);
+tr.push(0,255,88,4,+$('#bpc').value==3||+$('#bpc').value==6?3:4,2,24,8);
+tr.push(0,0xC0,prog,0,0xC1,32);
+let last=0;L.forEach(([t,on,n,v,bs])=>{tr.push(...vlq(t-last),(on?0x90:0x80)|(bs?1:0),n,on?v:0);last=t});
+tr.push(...vlq(Math.max(0,Math.round(len*PPQ)-last)),255,47,0);
+const h=[77,84,104,100,0,0,0,6,0,0,0,1,PPQ>>8,PPQ&255],tl=tr.length,t=[77,84,114,107,(tl>>24)&255,(tl>>16)&255,(tl>>8)&255,tl&255];
+return new Uint8Array([...h,...t,...tr])}
+const dl=(blob,name)=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)};
+const fname=V=>(V.name||'song').replace(/[^\w\-]+/g,'_').replace(/^_+|_+$/g,'')||'song';
+document.querySelector('#bMidi').onclick=()=>{const V=S.v[S.act],d=midi(V,S.act?'B':'A');if(!d)return msg('Không có hợp âm để xuất MIDI.',1);dl(new Blob([d],{type:'audio/midi'}),fname(V)+'.mid');msg('Đã xuất MIDI: '+V.name+' (kênh 1 hợp âm, kênh 2 bass; BPM, nhạc cụ, phách/hợp âm theo thanh dưới cùng). Chưa gồm giai điệu.')};
+function linesOf(V){let ci=0;return V.text.split('\n').map(line=>{if(!line.trim())return{blank:1,segs:[]};const sg=[];let cur={c:'',l:'',i:-1};const push=()=>{if(cur.c||cur.l)sg.push(cur)};line.split(/(\[[^\]]*\])/).forEach(p=>{const m=p.match(/^\[([^\]]*)\]$/);if(m&&P(m[1])){push();cur={c:m[1],l:'',i:ci++}}else cur.l+=p});push();return{blank:0,segs:sg}})}
+function cellHtml(L,oc,hl){return L.segs.map(x=>{const chg=hl&&oc&&x.i>=0&&oc[x.i]&&!same(oc[x.i],P(x.c));return`<span class="sg"><span class="cp${chg?' chg':''}">${esc(x.c)||'&nbsp;'}</span><span class="ly">${esc(x.l)||'&nbsp;'}</span></span>`}).join('')}
+function printHtml(idx,o){const vs=idx.map(i=>S.v[i]),oc=parse(S.v[0].text),ki=keyInfo(oc),key=NM[ki.k]+(ki.mn?' minor':' major'),fs={s:12,m:15,l:18}[o.size]||15;
+const hd=(V,i)=>`<h1>${esc(V.name)}</h1><div class="k">Key: ${key}${i?' · so với bản gốc: hợp âm đổi'+(o.hl?' được tô màu':''):' · bản gốc'}</div>`;
+let body='';const side=o.layout=='side'&&vs.length>1;
+if(!side){body=vs.map((V,n)=>`<section class="v${o.layout=='page'&&n?' pb':''}">${hd(V,idx[n])}${linesOf(V).map(L=>L.blank?'<div class="bl"></div>':`<div class="ln">${cellHtml(L,idx[n]?oc:null,o.hl)}</div>`).join('')}</section>`).join('')}
+else{for(let g=0;g<vs.length;g+=4){const gv=vs.slice(g,g+4),gi=idx.slice(g,g+4),LS=gv.map(linesOf),n=Math.max(...LS.map(x=>x.length));
+body+=`<table class="grid${g?' pb':''}" style="--n:${gv.length}"><thead><tr>${gv.map((V,k)=>`<th>${esc(V.name)}<div class="k">${gi[k]?'so với gốc':'bản gốc'}</div></th>`).join('')}</tr></thead><tbody>`+Array.from({length:n},(_,r)=>`<tr>${gv.map((V,k)=>{const L=LS[k][r];return`<td>${!L||L.blank?'<div class="bl"></div>':`<div class="ln">${cellHtml(L,gi[k]?oc:null,o.hl)}</div>`}</td>`}).join('')}</tr>`).join('')+`</tbody></table>`}
+body=`<div class="k" style="margin-bottom:8px">Key: ${key}</div>`+body}
+const land=o.orient=='land'||(o.orient=='auto'&&side&&Math.min(vs.length,4)>=3);
+return`<!doctype html><html lang="vi"><meta charset="utf-8"><title>${esc(vs.length==1?vs[0].name:'AI Chord Reharmonization')}</title><style>@page{margin:14mm;size:${o.orient=='port'?'portrait':land?'landscape':'auto'}}*{box-sizing:border-box}body{margin:0;font:${fs}px/1.5 "Be Vietnam Pro",system-ui,sans-serif;color:#111}h1{font-size:${fs+5}px;margin:0 0 2px}.k{color:#666;font-size:${Math.max(10,fs-3)}px;font-weight:400}.ln{margin:0 0 ${Math.round(fs*.8)}px;break-inside:avoid}.bl{height:${Math.round(fs*.8)}px}.sg{display:inline-flex;flex-direction:column;vertical-align:top}.cp{min-height:${Math.round(fs*1.4)}px;font-weight:700;color:#0b6b82;padding-right:6px;font-size:.92em}.cp.chg{color:#a3470a;background:#ffe8c7;border-radius:3px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.ly{white-space:pre-wrap}.pb{break-before:page}.grid{width:100%;border-collapse:collapse;table-layout:fixed}.grid th{text-align:left;font-size:${fs+1}px;padding:0 10px 6px 0;border-bottom:2px solid #0b6b82;vertical-align:bottom}.grid td{padding:0 10px 0 0;vertical-align:top;width:calc(100%/var(--n));overflow-wrap:anywhere}.grid tr{break-inside:avoid}</style>${body}</html>`}
+function doPrint(idx,o){const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);f.srcdoc=printHtml(idx,o);f.onload=()=>{setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){msg('Không mở được hộp thoại in.',1)}setTimeout(()=>f.remove(),60000)},300)}}
+function openPrint(){if(!parse(S.v[0].text).length)return msg('Không có hợp âm để in.',1);document.querySelector('#pdlg')?.remove();const w=document.createElement('div');w.id='pdlg';w.style.cssText='position:fixed;inset:0;background:#000a;z-index:50;display:grid;place-items:center;padding:12px';
+w.innerHTML=`<div style="background:#0d1a40;border:1px solid var(--bd);border-radius:16px;padding:18px;width:min(460px,100%);max-height:92vh;overflow:auto"><h3 style="font-size:15px;color:#fff">In / Xuất PDF</h3><div class="desc" style="margin:0 0 6px">Chọn các phương án muốn in:</div><div id="pvl">${S.v.map((V,i)=>`<label style="display:flex;gap:8px;align-items:center;padding:4px 2px;font-size:13px;color:var(--tx)"><input type="checkbox" data-pv="${i}" ${i==S.act?'checked':''}> ${esc(V.name)}${i?'':' <span style="color:var(--mu)">(gốc)</span>'}</label>`).join('')}</div><div class="row"><button id="pAll">Chọn tất cả</button><button id="pCur">Chỉ bản đang chọn</button><button id="pGen">Chỉ A/B/C mới nhất</button></div>
+<div class="row"><label style="width:96px">Bố cục</label><select id="pLay"><option value="page">Mỗi phương án một trang</option><option value="flow">Nối tiếp liên tục</option><option value="side">Cạnh nhau (so sánh, tối đa 4 cột/trang)</option></select></div>
+<div class="row"><label style="width:96px">Cỡ chữ</label><select id="pSz"><option value="s">Nhỏ</option><option value="m" selected>Vừa</option><option value="l">Lớn</option></select></div>
+<div class="row"><label style="width:96px">Hướng giấy</label><select id="pOr"><option value="auto">Tự động</option><option value="port">Dọc</option><option value="land">Ngang</option></select></div>
+<div class="row"><label><input type="checkbox" id="pHl" checked> Tô màu hợp âm đã đổi so với bản gốc</label></div><div class="desc" id="pInf"></div><div class="row" style="justify-content:flex-end"><button id="pNo">Hủy</button><button class="pri" id="pGo">In / Lưu PDF</button></div></div>`;document.body.appendChild(w);
+const cbs=()=>[...w.querySelectorAll('[data-pv]')],sel=()=>cbs().filter(c=>c.checked).map(c=>+c.dataset.pv),inf=()=>{const n=sel().length,l=w.querySelector('#pLay').value;w.querySelector('#pInf').textContent=n?`Đã chọn ${n} phương án. ${l=='side'?(n>1?'Cạnh nhau: '+Math.ceil(n/4)+' nhóm, mỗi nhóm tối đa 4 cột.':'Chỉ 1 phương án nên in như bình thường.'):l=='page'?'Sẽ in khoảng '+n+' trang trở lên.':'In liên tục, không ngắt trang.'}`:'Chưa chọn phương án nào.'};
+w.addEventListener('change',inf);w.querySelector('#pAll').onclick=()=>{cbs().forEach(c=>c.checked=true);inf()};w.querySelector('#pCur').onclick=()=>{cbs().forEach(c=>c.checked=+c.dataset.pv==S.act);inf()};w.querySelector('#pGen').onclick=()=>{const n=S.v.length;cbs().forEach(c=>c.checked=+c.dataset.pv>=Math.max(1,n-3));inf()};
+w.querySelector('#pNo').onclick=()=>w.remove();w.onclick=e=>{if(e.target==w)w.remove()};
+w.querySelector('#pGo').onclick=()=>{const idx=sel();if(!idx.length)return inf();const o={layout:w.querySelector('#pLay').value,size:w.querySelector('#pSz').value,orient:w.querySelector('#pOr').value,hl:w.querySelector('#pHl').checked};w.remove();doPrint(idx,o);msg('Đang mở hộp thoại in ('+idx.length+' phương án): chọn "Lưu dưới dạng PDF" để xuất PDF.')};inf()}
+document.querySelector('#bPdf').onclick=openPrint;
+document.querySelector('#bExp').insertAdjacentHTML('afterend','<button id="bPrint">In / PDF</button>');document.querySelector('#bPrint').onclick=openPrint;
+// Lock Section: nút 🔒 đầu mỗi dòng khóa/mở khóa mọi hợp âm của dòng đó
+const _draw=draw;draw=function(){_draw();document.querySelectorAll('#out .txt').forEach(tx=>{const groups=[];let g=[];tx.childNodes.forEach(n=>{if(n.nodeType==3){if(n.textContent.includes('\n')){if(g.length)groups.push(g);g=[]}}else if(n.classList&&n.classList.contains('ch'))g.push(n)});if(g.length)groups.push(g);groups.forEach(g=>{const ids=g.map(e=>+e.dataset.i),all=ids.every(i=>S.lock.has(i)),b=document.createElement('button');b.className='lks'+(all?' on':'');b.dataset.ids=ids.join();b.title=all?'Mở khóa cả dòng':'Khóa cả dòng (Lock Section)';b.textContent=all?'🔒 dòng':'🔓 dòng';g[0].before(b)})})};
+document.querySelector('#out').addEventListener('click',e=>{const b=e.target.closest('.lks');if(!b)return;e.stopImmediatePropagation();const ids=b.dataset.ids.split(',').map(Number),all=ids.every(i=>S.lock.has(i));ids.forEach(i=>all?S.lock.delete(i):S.lock.add(i));draw();msg('Lock Section: '+(all?'đã mở khóa':'đã khóa')+' '+ids.length+' hợp âm (#'+(ids[0]+1)+'–#'+(ids[ids.length-1]+1)+').')},true);
+// ===== Tăng / giảm tone: hợp âm tự chuyển theo tone mới =====
+S.tr=0;S.htr=[];S.htr[S.hi]=0;
+const NS=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const shSet=(k,mn)=>(mn?[4,11,6,1,8,3]:[7,2,9,4,11,6]).includes(k);
+const tnm=(c,n,sh)=>{const L=sh?NS:NM;let x=L[(c.r+n+120)%12]+c.q;if(c.b!=null&&c.b!=c.r)x+='/'+L[(c.b+n+120)%12];return x};
+const tText=(t,n,sh)=>t.replace(/\[([^\]]*)\]/g,(m,x)=>{const c=P(x);return c?'['+tnm(c,n,sh)+']':m});
+const tTag=(g,n,sh)=>g.replace(/→ (\S+)/,(m,x)=>{const c=P(x);return c?'→ '+tnm(c,n,sh):m});
+function shiftVs(n,sh,from){S.v.forEach((V,i)=>{if(i<from)return;V.text=tText(V.text,n,sh);if(V.tag)V.tag=V.tag.map(g=>g?tTag(g,n,sh):g)});if(S.key)S.key={k:(S.key.k+n+120)%12,mn:S.key.mn}}
+function shift(n){if(!n)return;const oc=parse(S.v[0].text);if(!oc.length)return msg('Không có hợp âm để chuyển tone.',1);const ki=keyInfo(oc),sh=shSet((ki.k+n+120)%12,ki.mn);shiftVs(n,sh,0);S.tr+=n;S.sel=null;const t=S.v[0].text;$('#src').value=t;S.hist=S.hist.slice(0,S.hi+1);S.hist.push(t);S.hi++;S.htr[S.hi]=S.tr;draw();msg('Đã chuyển tone '+(n>0?'+':'')+n+' cung: '+NM[(ki.k+n+120)%12]+(ki.mn?' minor':' major')+' (áp dụng cho bản gốc và mọi phương án; khóa hợp âm được giữ).')}
+const _setT=setT;setT=function(t,push){const h=S.hi;_setT(t,push);if(S.hi!=h)S.htr[S.hi]=S.tr};
+['#bUndo','#bRedo'].forEach(id=>{const b=document.querySelector(id),o=b.onclick;b.onclick=e=>{const h0=S.hi;o(e);if(S.hi==h0)return;const tr=S.htr[S.hi]??S.tr,d=tr-S.tr;if(d){const ki=detect(parse(S.v[0].text));shiftVs(d,shSet(ki.k,ki.mn),1);S.tr=tr;S.sel=null;draw()}}});
+['#bDemo','#bNew'].forEach(id=>{const b=document.querySelector(id),o=b.onclick;b.onclick=e=>{S.tr=0;S.htr=[];o(e)}});
+document.querySelector('#kchip').insertAdjacentHTML('afterend','<span id="trbox" style="display:inline-flex;gap:4px;align-items:center"><button id="trD" title="Hạ 1 nửa cung">♭ −1</button><b id="trV" style="min-width:30px;text-align:center;font-size:12px">0</b><button id="trU" title="Tăng 1 nửa cung">♯ +1</button><select id="trK" title="Chuyển thẳng sang tone khác"><option value="">Đổi sang tone…</option>'+['C','C#/Db','D','Eb','E','F','F#/Gb','G','Ab','A','Bb','B'].map((n,i)=>`<option value="${i}">${n}</option>`).join('')+'</select><button id="trR" title="Về tone ban đầu">Gốc</button></span>');
+document.querySelector('#trD').onclick=()=>shift(-1);document.querySelector('#trU').onclick=()=>shift(1);document.querySelector('#trR').onclick=()=>{if(S.tr)shift(-S.tr);else msg('Đang ở tone gốc.')};
+document.querySelector('#trK').onchange=e=>{const v=e.target.value;e.target.value='';if(v==='')return;const oc=parse(S.v[0].text);if(!oc.length)return msg('Không có hợp âm để chuyển tone.',1);let n=((+v-keyInfo(oc).k)+12)%12;if(n>6)n-=12;n?shift(n):msg('Bài đã ở tone này.')};
+const _dr2=draw;draw=function(){_dr2();const v=document.querySelector('#trV');if(v)v.textContent=(S.tr>0?'+':'')+S.tr};
+draw();
+})();
 </script></body></html>
